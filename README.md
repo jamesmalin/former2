@@ -57,3 +57,24 @@ If you prefer not to use a publicly hosted site to use Former2, you can [host yo
 **I found an issue / I'm missing an output / Something's wrong. Can you help?**
 
 If you find a bug or want to raise a feature request, please do so via [the issues page](https://github.com/iann0036/former2/issues).
+
+
+To Build and Run:
+```
+docker build -t former2_local:1.0 .
+docker run --name former2 -p $host_port:80 -d former2_local:1.0
+docker run --name former2 -p 8080:80 -d former2_local:1.0
+```
+
+To Build and Run on AWS:
+
+sudo yum update -y
+sudo yum install docker -y
+sudo yum install git
+git clone https://github.com/jamesmalin/former2.git
+cd former2/
+sudo usermod -a -G docker ec2-user
+sudo setfacl --modify user:ec2-user:rw /var/run/docker.sock
+sudo service docker start
+docker build -t former2_local:1.0 .
+docker run --name former2 -p 8080:80 -d former2_local:1.0
