@@ -205,6 +205,97 @@ function processTfParameter(param, spacing, index, tracked_resources) {
     return undefined;
 }
 
+function processPulumiParameter(param, spacing, index, tracked_resources) {
+    var paramitems = [];
+
+    if (param === undefined || param === null || (Array.isArray(param) && param.length == 0))
+        return undefined;
+    if (typeof param == "boolean") {
+        if (param)
+            return 'true';
+        return 'false';
+    }
+    if (typeof param == "number") {
+        for (var i = 0; i < index; i++) { // correlate
+            if (tracked_resources[i].returnValues && tracked_resources[i].returnValues.Terraform) {
+                for (var attr_name in tracked_resources[i].returnValues.Terraform) {
+                    if (tracked_resources[i].returnValues.Terraform[attr_name] == param) {
+                        return tracked_resources[i].logicalId.toLowerCase() + "." + attr_name;
+                    }
+                }
+            }
+        }
+
+        return param;
+    }
+    if (typeof param == "string") {
+        if (param.startsWith("!Ref ") || param.startsWith("!GetAtt ")) {
+            return undefined;
+        }
+
+        for (var i = 0; i < index; i++) { // correlate
+            if (tracked_resources[i].returnValues && tracked_resources[i].returnValues.Terraform) {
+                for (var attr_name in tracked_resources[i].returnValues.Terraform) {
+                    if (tracked_resources[i].returnValues.Terraform[attr_name] == param) {
+                        return tracked_resources[i].logicalId.toLowerCase() + "." + attr_name;
+                    }
+                }
+            }
+        }
+
+        var string_return = param;
+
+        if (string_return.includes("\n")) {
+            string_return = "\`\n" + string_return + "\n\`";
+            return string_return;
+        }
+
+        string_return = param.replace(/\"/g, `\\"`);
+
+        return `"${string_return}"`;
+    }
+    if (Array.isArray(param)) {
+        if (param.length == 0) {
+            return '[]';
+        }
+
+        param.forEach(paramitem => {
+            paramitems.push(processPulumiParameter(paramitem, spacing + 4, index, tracked_resources));
+        });
+
+        return `[
+` + ' '.repeat(spacing + 4) + paramitems.join(`,
+` + ' '.repeat(spacing + 4)) + `
+` + ' '.repeat(spacing) + `]`;
+    }
+    if (typeof param == "object") {
+        if (Object.keys(param).length === 0 && param.constructor === Object) {
+            return "{}";
+        }
+
+        Object.keys(param).forEach(function (key) {
+            var subvalue = processPulumiParameter(param[key], spacing + 4, index, tracked_resources);
+            if (typeof subvalue !== "undefined") {
+                if (subvalue[0] == '{') {
+                    paramitems.push(tfToPulumiProp(key) + ": " + subvalue);
+                } else {
+                    if (key.match(/^[0-9]+$/g)) {
+                        key = "\"" + key + "\"";
+                    }
+                    paramitems.push(tfToPulumiProp(key) + ": " + subvalue);
+                }
+            }
+        });
+
+        return `{
+` + ' '.repeat(spacing + 4) + paramitems.join(`,
+` + ' '.repeat(spacing + 4)) + `
+` + ' '.repeat(spacing) + `}`;
+    }
+
+    return undefined;
+}
+
 function processCfnParameter(param, spacing, index, tracked_resources) {
     var paramitems = [];
 
@@ -366,12 +457,17 @@ function processCfnParameter(param, spacing, index, tracked_resources) {
     return undefined;
 }
 
-function processCdktsParameter(param, spacing, index, tracked_resources) {
+function processCdkParameter(param, spacing, index, tracked_resources) {
     var paramitems = [];
 
     if (param === undefined || param === null || (Array.isArray(param) && param.length == 0))
         return undefined;
     if (typeof param == "boolean") {
+        if (iaclangselect == "python") {
+            if (param)
+                return "True";
+            return "False";
+        }
         if (param)
             return "true";
         return "false";
@@ -386,12 +482,26 @@ function processCdktsParameter(param, spacing, index, tracked_resources) {
         for (var i = 0; i < index; i++) { // correlate
             if (tracked_resources[i].returnValues && param != "") {
                 if (tracked_resources[i].returnValues.Ref == param) {
+                    if (iaclangselect == "python") {
+                        return tracked_resources[i].logicalId.toLowerCase() + ".ref";
+                    } else if (iaclangselect == "java") {
+                        return lcfirststr(tracked_resources[i].logicalId) + ".getRef()";
+                    } else if (iaclangselect == "dotnet") {
+                        return tracked_resources[i].logicalId.toLowerCase() + ".Ref";
+                    }
                     return tracked_resources[i].logicalId + ".ref";
                 }
                 if (tracked_resources[i].returnValues.GetAtt) {
                     for (var attr_name in tracked_resources[i].returnValues.GetAtt) {
                         if (tracked_resources[i].returnValues.GetAtt[attr_name] === param) {
-                            return tracked_resources[i].logicalId + ".getAtt('" + attr_name + "')"
+                            if (iaclangselect == "python") {
+                                return tracked_resources[i].logicalId.toLowerCase() + ".attr_" + pythonAttr(attr_name);
+                            } else if (iaclangselect == "java") {
+                                return lcfirststr(tracked_resources[i].logicalId) + ".getAtt(\"" + attr_name + "\")";
+                            } else if (iaclangselect == "dotnet") {
+                                return tracked_resources[i].logicalId.toLowerCase() + ".GetAtt(\"" + attr_name + "\")";
+                            }
+                            return tracked_resources[i].logicalId + ".attr" + attr_name;
                         }
                     }
                 }
@@ -401,7 +511,7 @@ function processCdktsParameter(param, spacing, index, tracked_resources) {
         var string_return = param;
 
         if (string_return.includes("\n")) {
-            string_return = "`" + string_return + "`";
+            string_return = "'''\n" + string_return + "\n'''";
             return string_return;
         }
 
@@ -411,15 +521,49 @@ function processCdktsParameter(param, spacing, index, tracked_resources) {
     }
     if (Array.isArray(param)) {
         if (param.length == 0) {
+            if (iaclangselect == "java") {
+                return 'Arrays.asList()';
+            } else if (iaclangselect == "dotnet") {
+                return 'new List<Dictionary<string, object>>{}'
+            }
             return '[]';
         }
 
         param.forEach(paramitem => {
-            var item = processCdktsParameter(paramitem, spacing + 4, index, tracked_resources);
+            var item = processCdkParameter(paramitem, spacing + 4, index, tracked_resources);
             if (typeof item !== "undefined") {
                 paramitems.push(item);
             }
         });
+
+        if (iaclangselect == "java") {
+            return `
+` + ' '.repeat(spacing) + `Arrays.asList(
+` + ' '.repeat(spacing + 4) + paramitems.join(`,
+` + ' '.repeat(spacing + 4)) + `
+` + ' '.repeat(spacing) + `)
+` + ' '.repeat(spacing - 4);
+        } else if (iaclangselect == "dotnet") {
+            if (paramitems[0] && paramitems[0].substr(0, 1) == "\"") {
+                return `new List<string>
+` + ' '.repeat(spacing) + `{
+` + ' '.repeat(spacing + 4) + paramitems.join(`,
+` + ' '.repeat(spacing + 4)) + `
+` + ' '.repeat(spacing) + `}`;
+            } else if (paramitems[0] && paramitems[0].substr(0, 1).match(/[0-9\-]/g)) {
+                return `new List<decimal>
+` + ' '.repeat(spacing) + `{
+` + ' '.repeat(spacing + 4) + paramitems.join(`,
+` + ' '.repeat(spacing + 4)) + `
+` + ' '.repeat(spacing) + `}`;
+            }
+
+            return `new List<Dictionary<string, object>>
+` + ' '.repeat(spacing) + `{
+` + ' '.repeat(spacing + 4) + paramitems.join(`,
+` + ' '.repeat(spacing + 4)) + `
+` + ' '.repeat(spacing) + `}`;
+        }
 
         return `[
 ` + ' '.repeat(spacing + 4) + paramitems.join(`,
@@ -428,11 +572,37 @@ function processCdktsParameter(param, spacing, index, tracked_resources) {
     }
     if (typeof param == "object") {
         Object.keys(param).forEach(function (key) {
-            var item = processCdktsParameter(param[key], spacing + 4, index, tracked_resources);
+            var item = processCdkParameter(param[key], spacing + 4, index, tracked_resources);
+            if (iaclangselect == "java") {
+                item = processCdkParameter(param[key], spacing + 8, index, tracked_resources);
+            }
             if (typeof item !== "undefined") {
-                paramitems.push(lcfirststr(key) + ": " + item);
+                if (iaclangselect == "python") {
+                    paramitems.push("\"" + pythonAttr(key) + "\": " + item);
+                } else if (iaclangselect == "java") {
+                    paramitems.push("put(\"" + key + "\"," + item + ");");
+                } else if (iaclangselect == "dotnet") {
+                    paramitems.push("[\"" + key + "\"] = " + item);
+                } else {
+                    paramitems.push(lcfirststr(key) + ": " + item);
+                }
             }
         });
+
+        if (iaclangselect == "java") {
+            return `
+` + ' '.repeat(spacing) + `new HashMap<String, Object>() {{
+` + ' '.repeat(spacing + 4) + paramitems.join(`
+` + ' '.repeat(spacing + 4)) + `
+` + ' '.repeat(spacing) + `}}
+` + ' '.repeat(spacing - 4);
+        } else if (iaclangselect == "dotnet") {
+            return `new Dictionary<string, object>
+` + ' '.repeat(spacing) + `{
+` + ' '.repeat(spacing + 4) + paramitems.join(`,
+` + ' '.repeat(spacing + 4)) + `
+` + ' '.repeat(spacing) + `}`;
+        }
 
         return `{
 ` + ' '.repeat(spacing + 4) + paramitems.join(`,
@@ -1439,18 +1609,18 @@ ${service}.${method}(${params});${was_blocked ? ' // blocked' : ''}`;
 function getResourceName(service, requestId, cfntype) {
     if (!requestId) {
         console.trace("No request ID found for " + service);
-        requestId = ""
+        requestId = "";
     }
 
     var i = 2; // on purpose, 2 means second usage
-    var proposed = ""
+    var proposed = "";
 
     if (logicalidstrategy == "shorttypeprefixhashsuffix") {
         shorttype = cfntype.split("::").pop();
 
         proposed = shorttype + MD5(requestId).substring(0, 7);
 
-        while (global_used_refs.includes(proposed)) {
+        while (global_used_refs.includes(proposed) && i < 999 && check_objects.length == 0) {
             proposed = shorttype + MD5(requestId + i).substring(0, 7);
             i += 1;
         }
@@ -1459,7 +1629,7 @@ function getResourceName(service, requestId, cfntype) {
 
         proposed = longtype + MD5(requestId).substring(0, 7);
 
-        while (global_used_refs.includes(proposed)) {
+        while (global_used_refs.includes(proposed) && i < 999 && check_objects.length == 0) {
             proposed = longtype + MD5(requestId + i).substring(0, 7);
             i += 1;
         }
@@ -1468,7 +1638,7 @@ function getResourceName(service, requestId, cfntype) {
 
         proposed = shorttype;
 
-        while (global_used_refs.includes(proposed)) {
+        while (global_used_refs.includes(proposed) && i < 999 && check_objects.length == 0) {
             proposed = shorttype + i;
             i += 1;
         }
@@ -1477,14 +1647,14 @@ function getResourceName(service, requestId, cfntype) {
 
         proposed = longtype;
 
-        while (global_used_refs.includes(proposed)) {
+        while (global_used_refs.includes(proposed) && i < 999 && check_objects.length == 0) {
             proposed = longtype + i;
             i += 1;
         }
     } else if (logicalidstrategy == "serviceprefixhashsuffix") {
         proposed = service.replace(/\-/g, "") + MD5(requestId).substring(0, 7);
 
-        while (global_used_refs.includes(proposed)) {
+        while (global_used_refs.includes(proposed) && i < 999 && check_objects.length == 0) {
             proposed = service.replace(/\-/g, "") + MD5(requestId + i).substring(0, 7);
             i += 1;
         }
@@ -1500,17 +1670,62 @@ function lcfirststr(str) {
         return str.toLowerCase();
     }
 
-    var ret = str.charAt(0).toLowerCase();
+    var ret = ""
 
-    if (str.length > 1 && str[1].toUpperCase() == str[1]) {
-        var i = 1;
-        while (str.length > i && str[i].toUpperCase() == str[i]) {
-            ret += str[i].toLowerCase();
-            i++;
+    var lastWasLower = true;
+    while (str.length > 0) {
+        if (str[0].match(/[A-Z0-9]/g)) {
+            if (lastWasLower) {
+                ret += str[0];
+                lastWasLower = false;
+            } else {
+                if (str.length > 1 && !str[1].match(/[A-Z0-9]/g)) {
+                    ret += str[0];
+                } else {
+                    ret += str[0].toLowerCase();
+                }
+            }
+        } else {
+            ret += str[0];
+            lastWasLower = true;
         }
-        ret = ret.substring(0, ret.length - 1) + ret.charAt(ret.length - 1).toUpperCase() + str.substring(ret.length);
-    } else {
-        ret += str.substring(1);
+        str = str.substr(1);
+    }
+
+    if (ret.length < 3) {
+        return ret.toLowerCase();
+    }
+    
+    ret = ret[0].toLowerCase() + ret.substr(1, ret.length - 2) + ret[ret.length - 1].toLowerCase();
+
+    return ret;
+}
+
+function tfToPulumiProp(str) {
+    var split = str.split("_");
+    var ret = split.map(x => x[0].toUpperCase() + x.substr(1)).join('');
+    ret = ret[0].toLowerCase() + ret.substr(1);
+
+    return ret;
+}
+
+function pythonAttr(str) {
+    if (str.length < 2) {
+        return str;
+    }
+
+    var ret = str.charAt(0).toLowerCase();
+    str = str.substr(1);
+
+    while (str.length > 0) {
+        var char = str.charAt(0);
+
+        if (char.match(/[A-Z]/g)) {
+            ret += "_";
+        }
+        ret += char.toLowerCase();
+
+        str = str.substr(1);
     }
 
     return ret;
@@ -1563,30 +1778,80 @@ function outputMapTroposphere(index, service, type, options, region, was_blocked
     return output;
 }
 
-function outputMapCdkts(index, service, type, options, region, was_blocked, logicalId, tracked_resources) {
+function outputMapCdk(index, service, type, options, region, was_blocked, logicalId, tracked_resources) {
     var output = '';
     var params = '';
 
     if (Object.keys(options).length) {
         for (option in options) {
             if (typeof options[option] !== "undefined" && options[option] !== null) {
-                var optionvalue = processCdktsParameter(options[option], 12, index, tracked_resources);
+                var initialSpacing = 12;
+                if (iaclangselect == "java" || iaclangselect == "dotnet") {
+                    initialSpacing = 20;
+                }
+                var optionvalue = processCdkParameter(options[option], initialSpacing, index, tracked_resources);
+                
                 if (typeof optionvalue !== "undefined") {
-                    params += `
+                    if (iaclangselect == "python") {
+                        params += `
+            ${pythonAttr(option)}=${optionvalue},`;
+                    } else if (iaclangselect == "java") {
+                        params += `
+                put("${option}", ${optionvalue});`;
+                    } else if (iaclangselect == "dotnet") {
+                        params += `
+                ["${option}"] = ${optionvalue},`;
+                    } else {
+                        params += `
             ${lcfirststr(option)}: ${optionvalue},`;
+                    }
                 }
             }
         }
-        params = "{" + params.substring(0, params.length - 1) + `
-        }`; // remove last comma
     }
 
     cdkservice = type.split("::")[1].toLowerCase();
+    if (cdkservice == "lambda" && iaclangselect == "python") {
+        cdkservice = "_lambda";
+    }
     cdktype = type.split("::")[2];
 
-    output += `        const ${logicalId} = new ${cdkservice}.Cfn${cdktype}(this, '${logicalId}', ${params});${was_blocked ? ' // blocked' : ''}
+    if (iaclangselect == "typescript") {
+        params = "{" + params.substring(0, params.length - 1) + `
+        }`; // remove last comma
+
+        output += `        const ${logicalId} = new ${cdkservice}.Cfn${cdktype}(this, '${logicalId}', ${params});
 
 `;
+    } else if (iaclangselect == "python") {
+        params = params.substring(0, params.length - 1); // remove last comma
+        output += `        ${logicalId.toLowerCase()} = ${cdkservice}.Cfn${cdktype}(
+            self,
+            "${logicalId}",${params}
+        )
+
+`;
+    } else if (iaclangselect == "java") {
+        output += `        CfnResource ${lcfirststr(logicalId)} = CfnResource.Builder.create(this, "${logicalId}")
+            .type("${type}")
+            .properties(new HashMap<String, Object>() {{
+                ${params}
+            }})
+            .build();
+
+`;
+    } else if (iaclangselect == "dotnet") {
+        params = params.substring(0, params.length - 1); // remove last comma
+        output += `            var ${logicalId.toLowerCase()} = new CfnResource(this, "${logicalId}", new CfnResourceProps
+            {
+                Type = "${type}",
+                Properties = new Dictionary<string, object>
+                {${params}
+                }
+            });
+
+`;
+    }
 
     return output;
 }
@@ -1753,8 +2018,7 @@ function outputMapTf(index, service, type, options, region, was_blocked, logical
                         if (typeof optionvalue !== "undefined") {
                             if (optionvalue[0] == '{') {
                                 params += `
-    ${option} ${optionvalue}
-`;
+    ${option} ${optionvalue}`;
                             } else {
                                 if (option.match(/^[0-9]+$/g)) {
                                     option = "\"" + option + "\"";
@@ -1770,8 +2034,7 @@ function outputMapTf(index, service, type, options, region, was_blocked, logical
                     if (typeof optionvalue !== "undefined") {
                         if (optionvalue[0] == '{') {
                             params += `
-    ${option} ${optionvalue}
-`;
+    ${option} ${optionvalue}`;
                         } else {
                             if (option.match(/^[0-9]+$/g)) {
                                 option = "\"" + option + "\"";
@@ -1789,6 +2052,107 @@ function outputMapTf(index, service, type, options, region, was_blocked, logical
 
     output += `
 resource "${type}" "${logicalId}" {${params}}
+`;
+
+    return output;
+}
+
+function outputMapPulumi(index, service, type, options, region, was_blocked, logicalId, tracked_resources) {
+    var output = '';
+    var params = '';
+
+    // tf -> pulumi
+    logicalId = logicalId.toLowerCase();
+    var pulumiConversionTable = {
+        'aws_api_gateway_': 'aws_apigateway_',
+        'aws_cloudhsm_v2_': 'aws_cloudhsmv2_',
+        'aws_launch_configuration': 'aws_ec2_launch_configuration',
+        'aws_service_discovery_': 'aws_servicediscovery_',
+        'aws_dx_': 'aws_directconnect_',
+        'aws_directory_service_': 'aws_directoryservice_',
+        'aws_instance': 'aws_ec2_instance',
+        'aws_placement_group': 'aws_ec2_placement_group',
+        'aws_volume_attachment': 'aws_ec2_volume_attachment',
+        'aws_security_group': 'aws_ec2_security_group',
+        'aws_elb': 'aws_elb_loadbalancer',
+        'aws_launch_template': 'aws_ec2_launch_template',
+        'aws_lb': 'aws_lb_loadbalancer',
+        'aws_key_pair': 'aws_ec2_key_pair',
+        'aws_elastic_beanstalk_': 'aws_elasticbeanstalk_',
+        'aws_media_package_': 'aws_mediapackage_',
+        'aws_media_store_': 'aws_mediastore_',
+        'aws_db_': 'aws_rds_',
+        'aws_ec2_transit_gateway_': 'aws_ec2transitgateway_',
+        'aws_ec2_transit_gateway': 'aws_ec2transitgateway_transit_gateway',
+        'aws_vpc_': 'aws_ec2_vpc_',
+        'aws_vpc': 'aws_ec2_vpc',
+        'aws_egress_only_internet_gateway': 'aws_ec2_egress_only_internet_gateway',
+        'aws_internet_gateway': 'aws_ec2_internet_gateway',
+        'aws_vpn_': 'aws_ec2_vpn_',
+        'aws_route_table_': 'aws_ec2_route_table_',
+        'aws_route_table': 'aws_ec2_route_table',
+        'aws_network_': 'aws_ec2_network_',
+        'aws_customer_gateway': 'aws_ec2_customer_gateway',
+        'aws_subnet': 'aws_ec2_subnet',
+        'aws_eip_': 'aws_ec2_eip_',
+        'aws_eip': 'aws_ec2_eip',
+        'aws_route': 'aws_ec2_route',
+        'aws_nat_gateway': 'aws_ec2_nat_gateway',
+        'aws_flow_log': 'aws_ec2_flow_log'
+    };
+    for (var k in pulumiConversionTable) {
+        if (type == k) {
+            type = pulumiConversionTable[k];
+        } else if (k.endsWith("_") && type.startsWith(k)) {
+            type = type.replace(k, pulumiConversionTable[k]);
+        }
+    }
+    var typesplit = type.split("_");
+    type = typesplit.shift() + "." + typesplit.shift() + "." + typesplit.map(x => x[0].toUpperCase() + x.substr(1)).join('');
+
+    if (Object.keys(options).length) {
+        for (option in options) {
+            if (typeof options[option] !== "undefined" && options[option] !== null) {
+                if (Array.isArray(options[option]) && typeof options[option][0] === 'object') {
+                    for (var i = 0; i < options[option].length; i++) {
+                        var optionvalue = processPulumiParameter(options[option][i], 4, index, tracked_resources);
+                        if (typeof optionvalue !== "undefined") {
+                            if (optionvalue[0] == '{') {
+                                params += `
+    ${tfToPulumiProp(option)}: ${optionvalue},`;
+                            } else {
+                                if (option.match(/^[0-9]+$/g)) {
+                                    option = "\"" + option + "\"";
+                                }
+                                params += `
+    ${tfToPulumiProp(option)}: ${optionvalue},`;
+                            }
+                        }
+
+                    }
+                } else {
+                    var optionvalue = processPulumiParameter(options[option], 4, index, tracked_resources);
+                    if (typeof optionvalue !== "undefined") {
+                        if (optionvalue[0] == '{') {
+                            params += `
+    ${tfToPulumiProp(option)}: ${optionvalue},`;
+                        } else {
+                            if (option.match(/^[0-9]+$/g)) {
+                                option = "\"" + option + "\"";
+                            }
+                            params += `
+    ${tfToPulumiProp(option)}: ${optionvalue},`;
+                        }
+                    }
+                }
+            }
+        }
+        params = params.substring(0, params.length - 1) + `
+`; // remove last comma
+    }
+
+    output += `
+const ${logicalId} = new ${type}("${logicalId}", {${params}});
 `;
 
     return output;
@@ -1839,23 +2203,9 @@ function outputMapCli(service, method, options, region, was_blocked) {
 }
 
 function compileOutputs(tracked_resources, cfn_deletion_policy) {
-    /*if (!outputs.length) {
-        return {
-            'boto3': '# No resources generated',
-            'go': '// No resources generated',
-            'cfn': '# No resources generated',
-            'tf': '# No resources generated',
-            'cli': '# No resources generated',
-            'js': '// No resources generated',
-            'cdkts': '// No resources generated',
-            'iam': '// No resources generated',
-            'troposphere': '# No resources generated'
-        };
-    }*/
-
     var services = {
         'go': [],
-        'cdkts': [],
+        'cdk': [],
         'troposphere': []
     };
     for (var i = 0; i < outputs.length; i++) {
@@ -1864,7 +2214,7 @@ function compileOutputs(tracked_resources, cfn_deletion_policy) {
         }
     }
     for (var i = 0; i < tracked_resources.length; i++) {
-        if (tracked_resources[i].type && !services['cdkts'].includes(tracked_resources[i].type.split("::")[1].toLowerCase())) {
+        if (tracked_resources[i].type && !services['cdk'].includes(tracked_resources[i].type.split("::")[1].toLowerCase())) {
             var troposervice = tracked_resources[i].type.split("::")[1].toLowerCase();
 
             if (troposervice == "kinesisanalytics") {
@@ -1875,7 +2225,7 @@ function compileOutputs(tracked_resources, cfn_deletion_policy) {
                 troposervice = "firehose";
             }
 
-            services['cdkts'].push(tracked_resources[i].type.split("::")[1].toLowerCase());
+            services['cdk'].push(tracked_resources[i].type.split("::")[1].toLowerCase());
             services['troposphere'].push(troposervice);
         }
     }
@@ -1899,52 +2249,85 @@ function compileOutputs(tracked_resources, cfn_deletion_policy) {
     }
 
     compiled = {
-        'boto3': `# pip install boto3
+        'boto3': null,
+        'go': null,
 
-import boto3
-`,
-        'go': `// go get -u github.com/aws/aws-sdk-go/...
-
-package main
-
-import (
-    "github.com/aws/aws-sdk-go/aws"
-    "github.com/aws/aws-sdk-go/aws/session"
-${services.go.map(service => `    "github.com/aws/aws-sdk-go/service/${mapServiceJs(service).toLowerCase().replace(/\-/g, '')}"`).join(`
-`)}
-)
-
-func main() {
-`,
         'cfn': `${!has_cfn ? '# No resources generated' : `AWSTemplateFormatVersion: "2010-09-09"
 Metadata:
 ${cfnspacing}Generator: "former2"
 Description: ""
 `}`,
+
         'tf': `${!has_tf ? '# No resources generated' : `# https://www.terraform.io/downloads.html
 
 provider "aws" {
     region = "${tracked_resources[0].region}"
 }
 `}`,
-        'cli': `# pip install awscli --upgrade --user
+        'pulumi': `${(iaclangselect == "typescript") ? `${!has_tf ? '// No resources generated' : `import * as pulumi from "@pulumi/pulumi";
+import * as aws from "@pulumi/aws";
+`}` : '// Selected programming language not supported for this output'}`,
 
-`,
-        'js': `// npm install aws-sdk
+        'cli': null,
+        'js': null,
 
-var AWS = require('aws-sdk');`,
-        'cdkts': `${!has_cfn ? '// No resources generated' : `// npm i -g aws-cdk
+        'cdk': `${(iaclangselect == "typescript") ? `${!has_cfn ? '// No resources generated' : `// cdk init app --language typescript
 
-${services.cdkts.map(service => `import ${service} = require('@aws-cdk/aws-${service}');`).join(`
+import * as cdk from '@aws-cdk/core';
+${services.cdk.map(service => `import * as ${service} from '@aws-cdk/aws-${service}';`).join(`
 `)}
-import cdk = require('@aws-cdk/cdk');
 
-class MyStack extends cdk.Stack {
-    constructor(parent: cdk.App, name: string, props?: cdk.StackProps) {
-        super(parent, name, props);
+export class MyStack extends cdk.Stack {
+    constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
+        super(scope, id, props);
 
-`}`,
+`}` : `${(iaclangselect == "python") ? `${!has_cfn ? '# No resources generated' : `# cdk init app --language python
+  
+from aws_cdk import (
+${services.cdk.map(service => `    aws_${service} as ${(service == "lambda") ? "_lambda" : service},`).join(`
+`)}
+    core as cdk
+)
+
+class MyStack(cdk.Stack):
+    def __init__(self, scope: cdk.Construct, id: str, **kwargs) -> None:
+        super().__init__(scope, id, **kwargs)
+
+`}` : `${(iaclangselect == "java") ? `${!has_cfn ? '// No resources generated' : `// cdk init app --language java
+  
+package com.myorg;
+
+import software.amazon.awscdk.core.Construct;
+import software.amazon.awscdk.core.Stack;
+import software.amazon.awscdk.core.StackProps;
+import software.amazon.awscdk.core.CfnResource;
+
+import java.util.Arrays;
+import java.util.HashMap;
+
+public class MyStack extends Stack {
+    public MyStack(final Construct scope, final String id) {
+        this(scope, id, null);
+    }
+
+    public MyStack(final Construct scope, final String id, final StackProps props) {
+        super(scope, id, props);
+        
+`}` : `${(iaclangselect == "dotnet") ? `${!has_cfn ? '// No resources generated' : `// cdk init app --language csharp
+  
+using Amazon.CDK;
+using System.Collections.Generic;
+
+namespace My
+{
+    public class MyStack : Stack
+    {
+        public MyStack(Construct scope, string id, IStackProps props = null) : base(scope, id, props)
+        {
+`}` : '// Selected programming language not supported for this output'}`}`}`}`,
+
         'iam': null,
+
         'troposphere': `${!has_cfn ? '# No resources generated' : `# pip install troposphere
 
 from troposphere import ${services.troposphere.map(service => `${service}`).join(', ')}
@@ -2019,35 +2402,53 @@ ${cfnspacing}${cfnspacing}  - "`)}"
     for (var i = 0; i < tracked_resources.length; i++) {
         if (tracked_resources[i].type) {
             compiled['cfn'] += outputMapCfn(i, tracked_resources[i].service, tracked_resources[i].type, tracked_resources[i].options.cfn, tracked_resources[i].region, tracked_resources[i].was_blocked, tracked_resources[i].logicalId, cfn_deletion_policy, tracked_resources);
-            compiled['cdkts'] += outputMapCdkts(i, tracked_resources[i].service, tracked_resources[i].type, tracked_resources[i].options.cfn, tracked_resources[i].region, tracked_resources[i].was_blocked, tracked_resources[i].logicalId, tracked_resources);
+            if (['typescript', 'python', 'java', 'dotnet'].includes(iaclangselect)) {
+                compiled['cdk'] += outputMapCdk(i, tracked_resources[i].service, tracked_resources[i].type, tracked_resources[i].options.cfn, tracked_resources[i].region, tracked_resources[i].was_blocked, tracked_resources[i].logicalId, tracked_resources);
+            }
             compiled['troposphere'] += outputMapTroposphere(i, tracked_resources[i].service, tracked_resources[i].type, tracked_resources[i].options.cfn, tracked_resources[i].region, tracked_resources[i].was_blocked, tracked_resources[i].logicalId, tracked_resources);
         }
         if (tracked_resources[i].terraformType) {
             compiled['tf'] += outputMapTf(i, tracked_resources[i].service, tracked_resources[i].terraformType, tracked_resources[i].options.tf, tracked_resources[i].region, tracked_resources[i].was_blocked, tracked_resources[i].logicalId, tracked_resources);
+            if (['typescript'].includes(iaclangselect)) {
+                compiled['pulumi'] += outputMapPulumi(i, tracked_resources[i].service, tracked_resources[i].terraformType, tracked_resources[i].options.tf, tracked_resources[i].region, tracked_resources[i].was_blocked, tracked_resources[i].logicalId, tracked_resources);
+            }
         }
     }
-    for (var i = 0; i < tracked_resources.length; i++) {
-        if (tracked_resources[i].type) {
-            compiled['cdkts'] = compiled['cdkts'].substring(0, compiled['cdkts'].length - 1); // trim a newline
-            compiled['cdkts'] += `
-        new cdk.Output(this, '${tracked_resources[i].logicalId}Ref', { value: ${tracked_resources[i].logicalId}.ref, disableExport: true });`;
-        }
+    if (tracked_resources.length && compiled['cdk'].split('\n').length > 1) {
+        compiled['cdk'] = compiled['cdk'].substring(0, compiled['cdk'].length - 1); // trim a newline
     }
 
     if (tracked_resources.length) {
-        if (compiled['cdkts'] != "// No resources generated") {
-            compiled['cdkts'] += `
+        if (compiled['cdk'].split('\n').length > 1) {
+            if (iaclangselect == "typescript") {
+                compiled['cdk'] += `
     }
 }
 
 const app = new cdk.App();
-
 new MyStack(app, 'my-stack-name', { env: { region: '${tracked_resources[0].region}' } });
-
-app.run();
+app.synth();
 `;
+            } else if (iaclangselect == "python") {
+                compiled['cdk'] += `
+
+app = cdk.App()
+MyStack(app, "my-stack-name", env={'region': '${tracked_resources[0].region}'})
+app.synth()
+`;
+            } else if (iaclangselect == "java") {
+                compiled['cdk'] += `    }
+}        
+`;
+            } else if (iaclangselect == "dotnet") {
+                compiled['cdk'] += `
         }
-        if (compiled['troposphere'] != "# No resources generated") {
+    }
+}
+`;
+            }
+        }
+        if (compiled['troposphere'].split('\n').length > 1) {
             compiled['troposphere'] += `print(template.to_yaml())
 `;
         }
@@ -2280,6 +2681,7 @@ function performF2Mappings(objects) {
                 'cfn': {},
                 'cli': {},
                 'tf': {},
+                'pulumi': {},
                 'iam': {}
             };
 

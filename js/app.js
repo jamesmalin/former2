@@ -1,3 +1,5 @@
+var CHROME_HELPER_EXTENSION_ID = "fhejmeojlbhfhjndnkkleooeejklmigi"; // Chrome
+var EDGE_HELPER_EXTENSION_ID = "okkjnfohglnomdbpimkcdkiojbeiedof"; // Edge
 var extension_available = false;
 var region = 'us-east-1';
 var output_objects = [];
@@ -7,6 +9,8 @@ var ping_extension_interval = null;
 var stack_parameters = [];
 var MAX_DT_SCANS = 10;
 var defaultoutput = 'cloudformation';
+var iaclangselect = 'typescript';
+var check_objects = [];
 
 $(document).ready(function(){
     /* ========================================================================== */
@@ -44,7 +48,7 @@ $(document).ready(function(){
                             <button class="additems btn btn-primary" data-datatable="section-${navlower(section.category)}-${navlower(section.service)}-${navlower(resourcetype)}-datatable" disabled>
                                 <i class="font-icon font-icon-plus"></i> Add Selected
                             </button>
-                            ${section.resourcetypes[resourcetype].terraformonly ? `<span style="margin-left: 16px; display: inline-block; vertical-align: middle; line-height: 16px; color: #6c7a86; font-weight: 600;"><i class="fa fa-info-circle"></i> Terraform only</span>` : ""}
+                            ${section.resourcetypes[resourcetype].terraformonly ? `<span style="margin-left: 16px; display: inline-block; vertical-align: middle; line-height: 16px; color: #6c7a86; font-weight: 600;"><i class="fa fa-info-circle"></i> Terraform / Pulumi only</span>` : ""}
                         </div>
                         <div class="table-responsive">
                             <table id="section-${navlower(section.category)}-${navlower(section.service)}-${navlower(resourcetype)}-datatable"
@@ -113,7 +117,7 @@ $(document).ready(function(){
     }
 
     function checkRelatedResources(rows) {
-        var check_objects = [];
+        check_objects = [];
         var related_resources = {};
         var related_resources_post = {};
         $('.f2datatable').each(function() {
@@ -131,6 +135,8 @@ $(document).ready(function(){
             });
         });
         mapped_check_objects = performF2Mappings(check_objects);
+        check_objects = [];
+        
         mapped_check_objects.forEach(obj => {
             rows.forEach(row => {
                 // looks for relationships from the row to the check objects
@@ -659,7 +665,8 @@ $(document).ready(function(){
         $('#header-button-import-cfn').attr('style', 'margin-left: 16px; display: none;');
         $('#header-button-copy-tf').attr('style', 'display: none;');
         $('#header-button-copy-troposphere').attr('style', 'display: none;');
-        $('#header-button-copy-cdkts').attr('style', 'display: none;');
+        $('#header-button-copy-cdk').attr('style', 'display: none;');
+        $('#header-button-copy-pulumi').attr('style', 'display: none;');
         $('#header-button-copy-raw').attr('style', 'display: none;');
 
         if ($(location.hash).length) {
@@ -678,6 +685,11 @@ $(document).ready(function(){
             $('#header-title').html(
                 $(location.hash).attr('data-section-title')
             );
+            if ($(location.hash).attr('data-section-label')) {
+                $('#header-title').append(
+                    `&nbsp;<h5 style="display: inline;"><span style="vertical-align: super;" class="label label-info">${$(location.hash).attr('data-section-label')}</span></h5>`
+                );
+            }
             $('#header-breadcrumb1').text(
                 $(location.hash).attr('data-section-breadcrumb1-title')
             );
@@ -731,12 +743,24 @@ $(document).ready(function(){
                         theme: "material"
                     });
                 }, 1);
-            } else if (location.hash == "#section-outputs-cdkts") {
-                $('#header-button-copy-cdkts').attr('style', '');
+            } else if (location.hash == "#section-outputs-cdk") {
+                $('#header-button-copy-cdk').attr('style', '');
                 $('#header-button-clear-outputs').attr('style', 'margin-left: 16px;');
 
                 setTimeout(function(){
-                    cdkts_editor.refresh();
+                    cdk_editor.refresh();
+                    tippy('.f2replacementmarker', {
+                        content: "Value requires replacement",
+                        placement: "right",
+                        theme: "material"
+                    });
+                }, 1);
+            } else if (location.hash == "#section-outputs-pulumi") {
+                $('#header-button-copy-pulumi').attr('style', '');
+                $('#header-button-clear-outputs').attr('style', 'margin-left: 16px;');
+
+                setTimeout(function(){
+                    pulumi_editor.refresh();
                     tippy('.f2replacementmarker', {
                         content: "Value requires replacement",
                         placement: "right",
@@ -818,7 +842,8 @@ $(document).ready(function(){
             cfn_editor.getDoc().setValue(mapped_outputs['cfn']);
             tf_editor.getDoc().setValue(mapped_outputs['tf']);
             troposphere_editor.getDoc().setValue(mapped_outputs['troposphere']);
-            cdkts_editor.getDoc().setValue(mapped_outputs['cdkts']);
+            cdk_editor.getDoc().setValue(mapped_outputs['cdk']);
+            pulumi_editor.getDoc().setValue(mapped_outputs['pulumi']);
             raw_editor.getDoc().setValue(JSON.stringify(output_objects, null, 4));
 
             // Gutters
@@ -826,7 +851,8 @@ $(document).ready(function(){
                 {key: 'cfn', editor: cfn_editor},
                 {key: 'tf', editor: tf_editor}, 
                 {key: 'troposphere', editor: troposphere_editor},
-                {key: 'cdkts', editor: cdkts_editor}
+                {key: 'cdk', editor: cdk_editor},
+                {key: 'pulumi', editor: pulumi_editor}
             ].forEach(language => {
                 var lines = mapped_outputs[language.key].split("\n");
                 for (var i=0; i<lines.length; i++) {
@@ -840,7 +866,8 @@ $(document).ready(function(){
                 cfn_editor.refresh();
                 tf_editor.refresh();
                 troposphere_editor.refresh();
-                cdkts_editor.refresh();
+                cdk_editor.refresh();
+                pulumi_editor.refresh();
                 raw_editor.refresh();
                 tippy('.f2replacementmarker', {
                     content: "Value requires replacement",
@@ -862,6 +889,7 @@ $(document).ready(function(){
         "us-east-2": "US East (Ohio)",
         "us-west-1": "US West (N. California)",
         "us-west-2": "US West (Oregon)",
+        "af-south-1": "Africa (Cape Town)",
         "ap-east-1": "Asia Pacific (Hong Kong)",
         "ap-south-1": "Asia Pacific (Mumbai)",
         "ap-northeast-3": "Asia Pacific (Osaka-Local)",
@@ -875,6 +903,7 @@ $(document).ready(function(){
         "eu-west-2": "EU (London)",
         "eu-west-3": "EU (Paris)",
         "eu-north-1": "EU (Stockholm)",
+        "eu-south-1": "EU (Milan)",
         "me-south-1": "Middle East (Bahrain)",
         "sa-east-1": "South America (S&#227;o Paulo)",
         "us-gov-east-1": "AWS GovCloud (US-Gov-East)",
@@ -983,7 +1012,7 @@ $(document).ready(function(){
     });
     setCopyEvent('#header-button-copy-troposphere', troposphere_editor);
 
-    cdkts_editor = CodeMirror.fromTextArea(document.getElementById('cdkts'), {
+    cdk_editor = CodeMirror.fromTextArea(document.getElementById('cdk'), {
         lineNumbers: true,
         gutters: ["f2gutter", "CodeMirror-linenumbers"],
         lineWrapping: true,
@@ -994,7 +1023,20 @@ $(document).ready(function(){
         viewportMargin: Infinity,
         scrollbarStyle: "null"
     });
-    setCopyEvent('#header-button-copy-cdkts', cdkts_editor);
+    setCopyEvent('#header-button-copy-cdk', cdk_editor);
+
+    pulumi_editor = CodeMirror.fromTextArea(document.getElementById('pulumi'), {
+        lineNumbers: true,
+        gutters: ["f2gutter", "CodeMirror-linenumbers"],
+        lineWrapping: true,
+        mode: "javascript",
+        theme: "material",
+        indentUnit: 4,
+        height: "auto",
+        viewportMargin: Infinity,
+        scrollbarStyle: "null"
+    });
+    setCopyEvent('#header-button-copy-pulumi', pulumi_editor);
 
     raw_editor = CodeMirror.fromTextArea(document.getElementById('raw'), {
         lineNumbers: true,
@@ -1218,6 +1260,19 @@ $(document).ready(function(){
         theme: 'material'
     });
 
+    $("#credentials-secretkey").focus(function() {
+        $(this).attr('type', 'text');
+    });
+    $("#credentials-secretkey").blur(function() {
+        $(this).attr('type', 'password');
+    });
+    $("#credentials-sessiontoken").focus(function() {
+        $(this).attr('type', 'text');
+    });
+    $("#credentials-sessiontoken").blur(function() {
+        $(this).attr('type', 'password');
+    });
+
     $('.select2-no-search-arrow').select2({ // Selectors for settings
         minimumResultsForSearch: "Infinity",
         theme: "arrow"
@@ -1313,11 +1368,31 @@ $(document).ready(function(){
     });
 
     defaultoutput = window.localStorage.getItem('defaultoutput') || 'cloudformation';
+    if (defaultoutput == "cdkts") { defaultoutput = "cdk"; } // breaking change
+    if (defaultoutput == "pulumits") { defaultoutput = "pulumi"; } // breaking change
+
     $('#defaultoutput').val(defaultoutput).trigger('change');
     $('#defaultoutput').change(function() {
         window.localStorage.setItem('defaultoutput', $(this).val());
         defaultoutput = $(this).val();
     });
+
+    iaclangselect = window.localStorage.getItem('iaclangselect') || 'typescript';
+    $('#iaclangselect').change(function() {
+        window.localStorage.setItem('iaclangselect', $(this).val());
+        iaclangselect = $(this).val();
+
+        if ($(this).val() == "typescript") {
+            cdk_editor.setOption("mode", "javascript");
+        } else if ($(this).val() == "java") {
+            cdk_editor.setOption("mode", "text/x-java");
+        } else if ($(this).val() == "dotnet") {
+            cdk_editor.setOption("mode", "text/x-csrc");
+        } else {
+            cdk_editor.setOption("mode", $(this).val());
+        }
+    });
+    $('#iaclangselect').val(iaclangselect).trigger('change');
 
     if (window.localStorage.getItem('relatedresourcessetting') == "true") {
         $('#relatedresourcessetting').prop('checked', true);
@@ -1336,7 +1411,6 @@ $(document).ready(function(){
 // Extension Request/Response
 /* ========================================================================== */
 
-var HELPER_EXTENSION_ID = "fhejmeojlbhfhjndnkkleooeejklmigi"; // Chrome
 var active_firefoxaddon_requests = {};
 
 document.addEventListener('f2response', msg => {
@@ -1366,9 +1440,15 @@ function extensionSendMessage(data, callback) {
                 callback(null);
             }, 200, callback);
         }
+    } else if (navigator.userAgent.search("Edg/") > -1) { // Edge (Chromium)
+        if (window.chrome && window.chrome.runtime) {
+            chrome.runtime.sendMessage(EDGE_HELPER_EXTENSION_ID, data, callback);
+        } else {
+            callback(null);
+        }
     } else { // Chrome
         if (window.chrome && window.chrome.runtime) {
-            chrome.runtime.sendMessage(HELPER_EXTENSION_ID, data, callback);
+            chrome.runtime.sendMessage(CHROME_HELPER_EXTENSION_ID, data, callback);
         } else {
             callback(null);
         }
@@ -1409,6 +1489,7 @@ function saveSettings() {
             'cfnspacing': window.localStorage.getItem('cfnspacing'),
             'logicalidstrategy': window.localStorage.getItem('logicalidstrategy') || 'longtypeprefixoptionalindexsuffix',
             'defaultoutput': window.localStorage.getItem('defaultoutput') || 'cloudformation',
+            'iaclangselect': window.localStorage.getItem('iaclangselect') || 'typescript',
             'relatedresourcessetting': window.localStorage.getItem('relatedresourcessetting')
         }
     };
@@ -1440,6 +1521,9 @@ function loadSettings() {
             }
             if ('defaultoutput' in loaded_settings.settings) {
                 $('#defaultoutput').val(loaded_settings.settings.defaultoutput).trigger('change');
+            }
+            if ('iaclangselect' in loaded_settings.settings) {
+                $('#iaclangselect').val(loaded_settings.settings.iaclangselect).trigger('change');
             }
             if ('relatedresourcessetting' in loaded_settings.settings) {
                 if (loaded_settings.settings.relatedresourcessetting == "true") {

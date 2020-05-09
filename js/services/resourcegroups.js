@@ -102,8 +102,17 @@ service_mapping_functions.push(function(reqParams, obj, tracked_resources){
             'region': obj.region,
             'service': 'resourcegroups',
             'type': 'AWS::ResourceGroups::Group',
-            'terraformType': 'aws_servicequotas_service_quota',
-            'options': reqParams
+            'terraformType': 'aws_resourcegroups_group',
+            'options': reqParams,
+            'returnValues': {
+                'Ref': obj.data.Name,
+                'GetAtt': {
+                    'Arn': obj.data.GroupArn
+                },
+                'Import': {
+                    'Name': obj.data.Name
+                }
+            }
         });
     } else {
         return false;

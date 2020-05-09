@@ -1,6 +1,6 @@
 ## CloudFormation Resource Coverage
 
-**523/522 (100%)** Resources Covered
+**533/532 (100%)** Resources Covered
 
 | Type | Coverage |
 | --- | --- |
@@ -86,6 +86,7 @@
 | *AWS::Batch::JobDefinition* | :thumbsup: |
 | *AWS::Batch::JobQueue* | :thumbsup: |
 | *AWS::Budgets::Budget* | :thumbsup: |
+| *AWS::CE::CostCategory* | :thumbsup: |
 | *AWS::Cassandra::Keyspace* | N/A |
 | *AWS::Cassandra::Table* | N/A |
 | *AWS::CertificateManager::Certificate* | :thumbsup: |
@@ -151,6 +152,8 @@
 | *AWS::DMS::ReplicationSubnetGroup* | :thumbsup: |
 | *AWS::DMS::ReplicationTask* | :thumbsup: |
 | *AWS::DataPipeline::Pipeline* | :thumbsup: |
+| *AWS::Detective::Graph* | :thumbsup: |
+| *AWS::Detective::MemberInvitation* | :thumbsup: |
 | *AWS::DirectoryService::MicrosoftAD* | :thumbsup: |
 | *AWS::DirectoryService::SimpleAD* | :thumbsup: |
 | *AWS::DocDB::DBCluster* | :thumbsup: |
@@ -253,6 +256,7 @@
 | *AWS::Elasticsearch::Domain* | :thumbsup: |
 | *AWS::EventSchemas::Discoverer* | :thumbsup: |
 | *AWS::EventSchemas::Registry* | :thumbsup: |
+| *AWS::EventSchemas::RegistryPolicy* | :thumbsup: |
 | *AWS::EventSchemas::Schema* | :thumbsup: |
 | *AWS::Events::EventBus* | :thumbsup: |
 | *AWS::Events::EventBusPolicy* | :thumbsup: |
@@ -314,6 +318,11 @@
 | *AWS::IAM::ServiceLinkedRole* | :thumbsup: |
 | *AWS::IAM::User* | :thumbsup: |
 | *AWS::IAM::UserToGroupAddition* | N/A |
+| *AWS::ImageBuilder::Component* | :thumbsup: |
+| *AWS::ImageBuilder::DistributionConfiguration* | :thumbsup: |
+| *AWS::ImageBuilder::ImagePipeline* | :thumbsup: |
+| *AWS::ImageBuilder::ImageRecipe* | :thumbsup: |
+| *AWS::ImageBuilder::InfrastructureConfiguration* | :thumbsup: |
 | *AWS::Inspector::AssessmentTarget* | :thumbsup: |
 | *AWS::Inspector::AssessmentTemplate* | :thumbsup: |
 | *AWS::Inspector::ResourceGroup* | :thumbsup: |
@@ -499,6 +508,7 @@
 | *AWS::ServiceDiscovery::Service* | :thumbsup: |
 | *AWS::StepFunctions::Activity* | :thumbsup: |
 | *AWS::StepFunctions::StateMachine* | :thumbsup: |
+| *AWS::Synthetics::Canary* | :thumbsup: |
 | *AWS::Transfer::Server* | :thumbsup: |
 | *AWS::Transfer::User* | :thumbsup: |
 | *AWS::WAF::ByteMatchSet* | :thumbsup: |
@@ -529,7 +539,7 @@
 
 ## Terraform Coverage
 
-**298/546 (54%)** Resources Covered
+**309/561 (55%)** Resources Covered
 
 | Type | Coverage |
 | --- | --- |
@@ -564,7 +574,18 @@
 | *aws_api_gateway_usage_plan* |  |
 | *aws_api_gateway_usage_plan_key* | :thumbsup: |
 | *aws_api_gateway_vpc_link* | :thumbsup: |
-| *aws_apigatewayv2_api* |  |
+| *aws_apigatewayv2_api* | :thumbsup: |
+| *aws_apigatewayv2_api_mapping* | :thumbsup: |
+| *aws_apigatewayv2_authorizer* | :thumbsup: |
+| *aws_apigatewayv2_deployment* | :thumbsup: |
+| *aws_apigatewayv2_domain_name* | :thumbsup: |
+| *aws_apigatewayv2_integration* | :thumbsup: |
+| *aws_apigatewayv2_integration_response* |  |
+| *aws_apigatewayv2_model* | :thumbsup: |
+| *aws_apigatewayv2_route* | :thumbsup: |
+| *aws_apigatewayv2_route_response* |  |
+| *aws_apigatewayv2_stage* | :thumbsup: |
+| *aws_apigatewayv2_vpc_link* | :thumbsup: |
 | *aws_app_cookie_stickiness_policy* |  |
 | *aws_appautoscaling_policy* |  |
 | *aws_appautoscaling_scheduled_action* |  |
@@ -678,6 +699,7 @@
 | *aws_dlm_lifecycle_policy* | :thumbsup: |
 | *aws_dms_certificate* |  |
 | *aws_dms_endpoint* |  |
+| *aws_dms_event_subscription* |  |
 | *aws_dms_replication_instance* |  |
 | *aws_dms_replication_subnet_group* |  |
 | *aws_dms_replication_task* |  |
@@ -720,6 +742,7 @@
 | *aws_ec2_traffic_mirror_session* |  |
 | *aws_ec2_traffic_mirror_target* |  |
 | *aws_ec2_transit_gateway* | :thumbsup: |
+| *aws_ec2_transit_gateway_peering_attachment* |  |
 | *aws_ec2_transit_gateway_route* | :thumbsup: |
 | *aws_ec2_transit_gateway_route_table* | :thumbsup: |
 | *aws_ec2_transit_gateway_route_table_association* | :thumbsup: |
@@ -785,6 +808,8 @@
 | *aws_guardduty_invite_accepter* |  |
 | *aws_guardduty_ipset* | :thumbsup: |
 | *aws_guardduty_member* | :thumbsup: |
+| *aws_guardduty_organization_admin_account* |  |
+| *aws_guardduty_organization_configuration* |  |
 | *aws_guardduty_threatintelset* | :thumbsup: |
 | *aws_iam_access_key* | :thumbsup: |
 | *aws_iam_account_alias* |  |
@@ -937,7 +962,7 @@
 | *aws_redshift_snapshot_schedule* |  |
 | *aws_redshift_snapshot_schedule_association* |  |
 | *aws_redshift_subnet_group* | :thumbsup: |
-| *aws_resourcegroups_group* |  |
+| *aws_resourcegroups_group* | :thumbsup: |
 | *aws_route* | :thumbsup: |
 | *aws_route53_delegation_set* |  |
 | *aws_route53_health_check* | :thumbsup: |
