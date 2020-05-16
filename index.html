@@ -230,6 +230,7 @@
                         <li><a href="#section-outputs-troposphere"><span class="lbl">Troposphere</span></a></li>
                         <li><a href="#section-outputs-cdk"><span class="lbl">CDK</span></a></li>
                         <li><a href="#section-outputs-pulumi"><span class="lbl">Pulumi</span></a></li>
+                        <li><a href="#section-outputs-diagram"><span class="lbl">Diagram</span></a></li>
                         <!--<li><a href="#section-outputs-iam"><span class="lbl">IAM</span></a></li>-->
                         <li><a href="#section-outputs-raw"><span class="lbl">Raw Output (Debug)</span></a></li>
                     </ul>
@@ -595,6 +596,7 @@
                             </div>
                             <button id="header-button-clear-outputs" type="button" class="f2-header-button btn btn-danger-outline" style="margin-left: 16px; display: none;"><i class="fa fa-trash-o"></i>&nbsp;&nbsp;Clear All</button>
                             <button id="header-button-import-cfn" type="button" class="f2-header-button btn btn-info-outline" style="margin-left: 16px; display: none;"><i class="fa fa-cloud-upload"></i>&nbsp;&nbsp;Import</button>
+                            <button id="header-button-download-diagram" type="button" class="f2-header-button btn btn-info-outline" style="margin-left: 16px; display: none;"><i class="fa fa-download"></i>&nbsp;&nbsp;Download PNG</button>
                             <button id="header-button-copy-cfn" type="button" class="f2-header-button btn btn-default-outline" style="display: none;"><i class="fa fa-files-o"></i>&nbsp;&nbsp;Copy</button>
                             <button id="header-button-copy-tf" type="button" class="f2-header-button btn btn-default-outline" style="display: none;"><i class="fa fa-files-o"></i>&nbsp;&nbsp;Copy</button>
                             <button id="header-button-copy-troposphere" type="button" class="f2-header-button btn btn-default-outline" style="display: none;"><i class="fa fa-files-o"></i>&nbsp;&nbsp;Copy</button>
@@ -1038,10 +1040,10 @@
                             <div class="col-md-6">
                                 <h5>Enter your IAM credentials:</h5>
                                 <div class="form-group">
-                                    <input id="credentials-accesskey" type="text" class="form-control credentials-field" placeholder="Access Key"/>
+                                    <input id="credentials-accesskey" type="text" class="form-control credentials-field" placeholder="Access Key ID"/>
                                 </div>
                                 <div class="form-group">
-                                    <input id="credentials-secretkey" type="password" class="form-control credentials-field" placeholder="Secret Key"/>
+                                    <input id="credentials-secretkey" type="password" class="form-control credentials-field" placeholder="Secret Access Key"/>
                                 </div>
                                 <div class="form-group">
                                     <input id="credentials-sessiontoken" type="password" class="form-control credentials-field" placeholder="Session Token (optional)"/>
@@ -1270,6 +1272,7 @@
                                         <option value="troposphere">Troposphere</option>
                                         <option value="cdk">CDK</option>
                                         <option value="pulumi">Pulumi</option>
+                                        <option value="diagram">Diagram</option>
                                     </select>
                                 </div>
                             </div>
@@ -1420,6 +1423,12 @@
                     </div>
                 </section>
 
+                <section id="section-outputs-diagram" data-section-breadcrumb1-title="Outputs" data-section-breadcrumb1-link="#section-outputs-cloudformation" data-section-title="Diagram" data-section-label="Beta" class="former2-section box-typical steps-numeric-block f2mb0" style="display: none;">
+                    <div id='diagram_container'>
+                        <iframe id="diagramframe" style="width: 100%; height: 100%; border: 0;"></iframe>
+                    </div>
+                </section>
+
                 <section id="section-outputs-iam" data-section-breadcrumb1-title="Outputs" data-section-breadcrumb1-link="#section-outputs-cloudformation" data-section-title="IAM" class="former2-section" style="display: none;">
                     <div class="alert alert-warning alert-fill fade show" role="alert">
                         <i class="font-icon font-icon-inline font-icon-warning"></i>
@@ -1460,7 +1469,7 @@
 
         <script src="js/deepmerge.js"></script>
 
-        <script src="aws-sdk-2.663.0.min.js"></script>
+        <script src="aws-sdk-2.678.0.min.js"></script>
         <script src="js/RelationshipTypeMap.js"></script>
 
         <script src="js/deferred-datatable.js"></script>

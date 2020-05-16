@@ -531,7 +531,7 @@ async function updateDatatableManagementAndGovernanceSystemsManager() {
         await Promise.all(data.Associations.map(association => {
             return sdkcall("SSM", "describeAssociation", {
                 Name: association.Name,
-                InstanceId: association.InstanceId,
+                //InstanceId: association.InstanceId,
                 AssociationId: association.AssociationId,
                 AssociationVersion: association.AssociationVersion
             }, true).then((data) => {
@@ -690,7 +690,7 @@ service_mapping_functions.push(function(reqParams, obj, tracked_resources){
             'returnValues': {
                 'Ref': obj.data.Name,
                 'GetAtt': {
-                    'Type': obj.data.Type,
+                    //'Type': obj.data.Type,
                     'Value': obj.data.Value
                 }
             }
